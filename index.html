@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>浮力实验室 | 阿基米德原理趣味互动</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 避免拖动滑块时误选文字，提升体验 */
+        }
+
+        body {
+            background: linear-gradient(145deg, #e0f2fe 0%, #bae6fd 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Quicksand', system-ui, 'Poppins', 'Roboto', sans-serif;
+            padding: 20px;
+        }
+
+        /* 主卡片容器 */
+        .experiment-container {
+            max-width: 1300px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(2px);
+            border-radius: 64px;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255,255,255,0.5) inset;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        /* 两列布局 */
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* 左侧示意图区域 趣味水族箱风格 */
+        .diagram-area {
+            flex: 1.2;
+            background: #fef9e6;
+            padding: 25px 20px 20px 20px;
+            border-radius: 48px;
+            margin: 20px 0 20px 20px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.02), 0 12px 24px -8px rgba(0,0,0,0.1);
+            border: 2px solid #fff9ef;
+        }
+
+        .canvas-wrapper {
+            background: #e3f2fd;
+            border-radius: 48px;
+            padding: 10px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #ffffffd9;
+            border-radius: 36px;
+            margin: 0 auto;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .diagram-caption {
+            text-align: center;
+            margin-top: 18px;
+            font-weight: 600;
+            color: #2c3e66;
+            background: #fef9e0;
+            display: inline-block;
+            width: auto;
+            padding: 6px 18px;
+            border-radius: 60px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(4px);
+        }
+
+        /* 右侧控制区域 */
+        .control-area {
+            flex: 0.9;
+            padding: 30px 28px 30px 20px;
+            background: #ffffffcc;
+            border-radius: 56px;
+            margin: 20px 20px 20px 0;
+            backdrop-filter: blur(4px);
+        }
+
+        /* 模式切换按钮组 (趣味开关) */
+        .mode-switch {
+            background: #f0f4f8;
+            border-radius: 100px;
+            padding: 6px;
+            display: flex;
+            gap: 12px;
+            margin-bottom: 32px;
+            box-shadow: inset 0 1px 3px #0001, 0 3px 6px #0001;
+        }
+
+        .mode-btn {
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 60px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: 0.2s;
+            background: transparent;
+            color: #2b5f8a;
+            border: none;
+            font-family: inherit;
+            letter-spacing: 1px;
+        }
+
+        .mode-btn.active {
+            background: #ffb74d;
+            color: #2d2b1f;
+            box-shadow: 0 6px 12px #ffb74d80;
+            transform: scale(0.98);
+        }
+
+        .mode-btn:first-child.active {
+            background: #4fc3f7;
+            color: #0a2f44;
+        }
+        .mode-btn:last-child.active {
+            background: #66bb6a;
+            color: #1e3a1e;
+        }
+
+        /* 参数卡片 */
+        .param-card {
+            background: #ffffffdd;
+            border-radius: 40px;
+            padding: 22px 24px;
+            margin-bottom: 28px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
+            transition: 0.2s;
+            border: 1px solid #fff9e6;
+        }
+
+        .param-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            color: #1f3a5f;
+            border-left: 7px solid #ffa270;
+            padding-left: 16px;
+        }
+
+        .param-title span {
+            background: #ffe0b5;
+            border-radius: 40px;
+            font-size: 1rem;
+            padding: 4px 12px;
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            color: #2c5282;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            background: linear-gradient(90deg, #3b82f6, #93c5fd);
+            border-radius: 10px;
+            outline: none;
+        }
+
+        input[type="range"]:focus {
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 26px;
+            height: 26px;
+            background: #ff9800;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 12px #ff9800;
+            border: 2px solid white;
+        }
+
+        .value-badge {
+            background: #eef2ff;
+            padding: 6px 16px;
+            border-radius: 36px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #1565c0;
+            display: inline-block;
+        }
+
+        .fixed-info {
+            background: #e9f5e9;
+            border-radius: 28px;
+            padding: 12px 18px;
+            margin-top: 16px;
+            text-align: center;
+            font-weight: 500;
+            color: #2e6b2f;
+        }
+
+        /* 浮力展示区 趣味气泡 */
+        .force-area {
+            background: linear-gradient(135deg, #fef3c7, #ffe4b5);
+            border-radius: 48px;
+            padding: 20px 20px;
+            text-align: center;
+            margin-top: 10px;
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .force-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #a3411b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .force-value {
+            font-size: 3.8rem;
+            font-weight: 800;
+            background: #fff0cf;
+            display: inline-block;
+            padding: 10px 30px;
+            border-radius: 80px;
+            margin: 12px 0;
+            color: #d35400;
+            font-family: monospace;
+            letter-spacing: 2px;
+            box-shadow: inset 0 -2px 0 #d49c6c, 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        .force-unit {
+            font-size: 1.3rem;
+        }
+
+        .formula-hint {
+            font-size: 0.9rem;
+            background: #fff2df;
+            border-radius: 60px;
+            padding: 6px 14px;
+            display: inline-block;
+        }
+
+        button, input {
+            transition: all 0.2s ease;
+        }
+
+        @media (max-width: 780px) {
+            .split-layout {
+                flex-direction: column;
+            }
+            .diagram-area, .control-area {
+                margin: 15px;
+            }
+            .force-value {
+                font-size: 2.6rem;
+            }
+        }
+
+        .hidden-ctrl {
+            display: none;
+        }
+
+        .emoji-big {
+            font-size: 1.8rem;
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.2));
+        }
+    </style>
+</head>
+<body>
+
+<div class="experiment-container">
+    <div class="split-layout">
+        <!-- 左侧示意图 : 浮力可视化 -->
+        <div class="diagram-area">
+            <div class="canvas-wrapper">
+                <canvas id="floatingCanvas" width="500" height="400" style="width:100%; height:auto; max-width:500px; aspect-ratio:500/400"></canvas>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 12px; gap: 12px;">
+                <div class="diagram-caption">💧 液体密度 / 排开体积 对浮力的影响</div>
+                <div class="diagram-caption">⚡ 控制变量法</div>
+            </div>
+        </div>
+
+        <!-- 右侧控制区 -->
+        <div class="control-area">
+            <!-- 模式切换 两个趣味按钮 -->
+            <div class="mode-switch">
+                <button id="modeDensityBtn" class="mode-btn active">🌊 改变液体密度 <span style="font-size:0.8rem;">(ρ变 V排不变)</span></button>
+                <button id="modeVolumeBtn" class="mode-btn">📦 改变排开体积 <span style="font-size:0.8rem;">(V排变 ρ不变)</span></button>
+            </div>
+
+            <!-- 模式1：密度调节模块 (控制液体密度) -->
+            <div id="densityPanel" class="param-card">
+                <div class="param-title">
+                    🧪 液体密度调节器 
+                    <span>控制变量：排开体积固定</span>
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>⚗️ 液体密度 ρ</span>
+                        <span class="value-badge" id="densityValueDisplay">1000 kg/m³</span>
+                    </div>
+                    <input type="range" id="densitySlider" min="500" max="1500" step="10" value="1000">
+                    <div style="font-size:0.8rem; margin-top: 8px;">💡 密度越大，液体越“浓” (颜色变深)</div>
+                </div>
+                <div class="fixed-info">
+                    🧊 固定排开液体体积 V<sub>排</sub> = 500 cm³ &nbsp;(0.0005 m³)<br>
+                    📐 物体浸没比例保持不变 &nbsp;|&nbsp; 挑战: 密度变大 → 浮力↑
+                </div>
+            </div>
+
+            <!-- 模式2：排开体积调节模块 (改变V排) -->
+            <div id="volumePanel" class="param-card hidden-ctrl">
+                <div class="param-title">
+                    📐 排开体积调节器 
+                    <span>控制变量：液体密度固定</span>
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>💧 排开液体体积 V<sub>排</sub></span>
+                        <span class="value-badge" id="volumeValueDisplay">500 cm³</span>
+                    </div>
+                    <input type="range" id="volumeSlider" min="0" max="800" step="5" value="500">
+                    <div style="font-size:0.8rem; margin-top: 8px;">🐟 浸没部分越多，排开水越多 → 浮力越大</div>
+                </div>
+                <div class="fixed-info">
+                    🧴 固定液体密度 = 1000 kg/m³ (纯净水)<br>
+                    📦 物体总体积 = 800 cm³ &nbsp;|&nbsp; 滑块控制浸没比例
+                </div>
+            </div>
+
+            <!-- 浮力展示区 超酷数值 -->
+            <div class="force-area">
+                <div class="force-label">
+                    <span class="emoji-big">⬆️</span> 物体所受浮力 <span class="emoji-big">💪</span>
+                </div>
+                <div class="force-value" id="forceMagnitude">0.00</div>
+                <div class="force-unit">牛顿 (N)</div>
+                <div class="formula-hint">
+                    📖 阿基米德原理：F<sub>浮</sub> = ρ<sub>液</sub> × g × V<sub>排</sub> &nbsp;&nbsp;(g = 9.8 N/kg)
+                </div>
+            </div>
+            <div style="margin-top: 15px; text-align: center; font-size: 0.8rem; color:#2c5a7a;">
+                💡 动手试试！控制变量法——保持一个量不变，改变另一个，观察浮力变化
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- 物理常量 ----------
+        const g = 9.8;          // N/kg  重力加速度
+        
+        // 物体固定属性 (总体积 800 cm³ = 0.0008 m³, 长方体底部放置，用于视觉浸没比例)
+        const objectTotalVolume_m3 = 0.0008;   // 0.0008 m³ = 800 cm³
+        const objectTotalVolume_cm3 = 800;     // 视觉比例用
+        
+        // 模式1的固定排开体积 (密度模式V排不变)  500 cm³ = 0.0005 m³
+        const fixedDisplacedVolume_m3 = 0.0005;   // 500 cm³
+        const fixedDisplacedVolume_cm3 = 500;
+        
+        // 模式2的固定液体密度 kg/m³
+        const fixedLiquidDensity = 1000;   // 水
+        
+        // ---------- DOM 元素 ----------
+        const canvas = document.getElementById('floatingCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 模式按钮
+        const modeDensityBtn = document.getElementById('modeDensityBtn');
+        const modeVolumeBtn = document.getElementById('modeVolumeBtn');
+        
+        // 面板
+        const densityPanel = document.getElementById('densityPanel');
+        const volumePanel = document.getElementById('volumePanel');
+        
+        // 控件
+        const densitySlider = document.getElementById('densitySlider');
+        const densityValueDisplay = document.getElementById('densityValueDisplay');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValueDisplay = document.getElementById('volumeValueDisplay');
+        const forceSpan = document.getElementById('forceMagnitude');
+        
+        // ---------- 状态 ----------
+        let currentMode = 'density';   // 'density' 或 'volume'
+        // 模式1 当前液体密度 (kg/m³)
+        let currentDensity = 1000;      // 默认水密度
+        // 模式2 当前排开体积 (m³)
+        let currentDisplacedVolume_m3 = 0.0005;   // 500 cm³
+        
+        // 辅助值: 用于视觉浸没比例计算 (单位:m³)
+        let visualDisplacedVolume = fixedDisplacedVolume_m3; // 密度模式下固定排开体积
+        
+        // ---------- 更新UI可见性和滑块值同步 ----------
+        function updateUIByMode() {
+            if (currentMode === 'density') {
+                densityPanel.classList.remove('hidden-ctrl');
+                volumePanel.classList.add('hidden-ctrl');
+                // 确保密度显示和滑块同步
+                densitySlider.value = currentDensity;
+                densityValueDisplay.innerText = currentDensity + " kg/m³";
+                // 重置视觉排开体积为固定值
+                visualDisplacedVolume = fixedDisplacedVolume_m3;
+                // 重新计算浮力并绘图
+                updateForceAndDraw();
+            } else {
+                densityPanel.classList.add('hidden-ctrl');
+                volumePanel.classList.remove('hidden-ctrl');
+                // 体积模式同步排开体积滑块
+                let vol_cm3 = currentDisplacedVolume_m3 * 1000000; // m³ -> cm³
+                vol_cm3 = Math.min(objectTotalVolume_cm3, Math.max(0, vol_cm3));
+                volumeSlider.value = vol_cm3;
+                volumeValueDisplay.innerText = Math.round(vol_cm3) + " cm³";
+                visualDisplacedVolume = currentDisplacedVolume_m3;
+                updateForceAndDraw();
+            }
+        }
+        
+        // 计算当前浮力 (牛顿)
+        function computeBuoyancy() {
+            if (currentMode === 'density') {
+                // 排开体积固定: fixedDisplacedVolume_m3
+                let rho = currentDensity;
+                let v = fixedDisplacedVolume_m3;
+                let buoyancy = rho * g * v;
+                return buoyancy;
+            } else {
+                // 体积模式: 密度固定为水密度1000 kg/m³ , V排可变
+                let rho = fixedLiquidDensity;
+                let v = currentDisplacedVolume_m3;
+                let buoyancy = rho * g * v;
+                return buoyancy;
+            }
+        }
+        
+        // 更新浮力显示和绘制
+        function updateForceAndDraw() {
+            let buoyancy = computeBuoyancy();
+            forceSpan.innerText = buoyancy.toFixed(2);
+            drawCanvas();     // 重绘示意图，根据当前visualDisplacedVolume及模式相关密度，展示不同颜色/浸没比例
+        }
+        
+        // 针对密度模式: 改变密度时更新
+        function onDensityChange() {
+            let newDensity = parseFloat(densitySlider.value);
+            currentDensity = newDensity;
+            densityValueDisplay.innerText = newDensity + " kg/m³";
+            updateForceAndDraw();
+        }
+        
+        // 体积模式: 改变体积滑块
+        function onVolumeChange() {
+            let vol_cm3 = parseFloat(volumeSlider.value);
+            let vol_m3 = vol_cm3 / 1000000;   // cm³ -> m³
+            // 限制最大不超过物体总体积 (800 cm³)
+            vol_m3 = Math.min(objectTotalVolume_m3, Math.max(0, vol_m3));
+            currentDisplacedVolume_m3 = vol_m3;
+            let displayCm3 = Math.round(vol_m3 * 1000000);
+            volumeValueDisplay.innerText = displayCm3 + " cm³";
+            visualDisplacedVolume = currentDisplacedVolume_m3;
+            updateForceAndDraw();
+        }
+        
+        // ---------- 炫酷示意图绘制 (浸没比例表现 + 液体密度颜色) ----------
+        function drawCanvas() {
+            if (!canvas || !ctx) return;
+            // 设置画布宽高防止缩放模糊 (固定尺寸500x400)
+            canvas.width = 500;
+            canvas.height = 400;
+            ctx.clearRect(0, 0, 500, 400);
+            
+            // 1. 绘制烧杯外轮廓 (大容器)
+            const beakerX = 70;
+            const beakerY = 40;
+            const beakerW = 360;
+            const beakerH = 300;
+            // 圆底烧杯风格
+            ctx.save();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.moveTo(beakerX + 20, beakerY);
+            ctx.lineTo(beakerX + beakerW - 20, beakerY);
+            ctx.quadraticCurveTo(beakerX + beakerW, beakerY, beakerX + beakerW, beakerY + 15);
+            ctx.lineTo(beakerX + beakerW, beakerY + beakerH - 20);
+            ctx.quadraticCurveTo(beakerX + beakerW, beakerY + beakerH, beakerX + beakerW - 20, beakerY + beakerH);
+            ctx.lineTo(beakerX + 20, beakerY + beakerH);
+            ctx.quadraticCurveTo(beakerX, beakerY + beakerH, beakerX, beakerY + beakerH - 20);
+            ctx.lineTo(beakerX, beakerY + 15);
+            ctx.quadraticCurveTo(beakerX, beakerY, beakerX + 20, beakerY);
+            ctx.closePath();
+            ctx.fillStyle = "#faf5ec";
+            ctx.fill();
+            ctx.strokeStyle = "#b59a6b";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 2. 确定物体位置 (一个可爱的圆角长方体 放在烧杯底部)
+            const objX = beakerX + beakerW/2 - 45;
+            const objBaseY = beakerY + beakerH - 28;  // 底部留空一点
+            const objWidth = 90;
+            const objHeight = 110;    // 总高度代表物体总体积 800cm³ 视觉比例
+            
+            // 当前显示排开体积对应的浸没高度比例
+            let currentVdisp = visualDisplacedVolume;   // m³
+            let volumeRatio = currentVdisp / objectTotalVolume_m3;
+            volumeRatio = Math.min(1, Math.max(0, volumeRatio));
+            // 浸没高度 = 总高度 * 体积比例 (假设横截面积均匀)
+            const immersedHeight = objHeight * volumeRatio;
+            
+            // 液面高度 = 物体底部Y坐标 - 浸没高度
+            const liquidSurfaceY = objBaseY - immersedHeight;
+            
+            // 3. 绘制液体 (根据当前模式及密度不同, 颜色动态变化)
+            // 密度模式: 密度越大颜色越深 / 体积模式固定水色
+            let liquidColor;
+            if (currentMode === 'density') {
+                // 密度范围500~1500，映射颜色: 浅青到深蓝紫
+                let ratioColor = (currentDensity - 500) / 1000; // 0~1
+                let r = 100 + Math.floor(80 * (1-ratioColor));
+                let g = 180 + Math.floor(55 * (1-ratioColor));
+                let b = 220 + Math.floor(35 * ratioColor);
+                liquidColor = `rgba(${r}, ${g}, ${b}, 0.85)`;
+            } else {
+                // 体积模式 标准水蓝色带趣味渐变
+                liquidColor = "rgba(52, 172, 224, 0.8)";
+            }
+            
+            // 绘制液体填充 (注意液面不能超过烧杯上沿和底部)
+            const liquidTopY = Math.min(beakerY + beakerH - 10, Math.max(beakerY + 15, liquidSurfaceY));
+            if (liquidTopY < beakerY + beakerH - 5) {
+                ctx.beginPath();
+                ctx.rect(beakerX+2, liquidTopY, beakerW-4, beakerY + beakerH - liquidTopY - 8);
+                ctx.fillStyle = liquidColor;
+                ctx.fill();
+                // 加高光波纹
+                ctx.beginPath();
+                ctx.moveTo(beakerX+10, liquidTopY+2);
+                ctx.lineTo(beakerX+beakerW-10, liquidTopY+2);
+                ctx.strokeStyle = "rgba(255,255,220,0.8)";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            } else {
+                // 特殊情况画满
+                ctx.fillStyle = liquidColor;
+                ctx.fillRect(beakerX+2, beakerY+15, beakerW-4, beakerH-23);
+            }
+            
+            // 绘制物体主体 (未浸没部分为淡褐色, 浸没部分叠加半透明蓝色)
+            ctx.shadowBlur = 0;
+            // 物体圆角矩形
+            ctx.beginPath();
+            ctx.roundRect(objX, objBaseY - objHeight, objWidth, objHeight, 16);
+            ctx.fillStyle = "#DEB887";  // 木头色
+            ctx.fill();
+            ctx.strokeStyle = "#aa7c4a";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            
+            // 绘制浸没区域 (根据液面覆盖)
+            if (immersedHeight > 0 && liquidSurfaceY < objBaseY) {
+                // 浸没区域从物体底部往上 immersedHeight 高度
+                const immersedStartY = objBaseY - immersedHeight;
+                const immersedRectH = immersedHeight;
+                ctx.save();
+                ctx.beginPath();
+                ctx.roundRect(objX, immersedStartY, objWidth, immersedRectH, 12);
+                ctx.fillStyle = "rgba(0, 150, 255, 0.45)";
+                ctx.fill();
+                // 增加水纹斑点趣味
+                ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                for(let i=0;i<8;i++) {
+                    ctx.beginPath();
+                    ctx.arc(objX + 15 + (i*9), immersedStartY + immersedRectH - 8, 3, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+            
+            // 画浮力箭头指示 (向上，大小根据浮力值适当缩放)
+            const buoyancyVal = computeBuoyancy();
+            const arrowLength = Math.min(65, 20 + buoyancyVal * 8);
+            const arrowStartX = objX + objWidth/2;
+            const arrowStartY = objBaseY - objHeight - 8;
+            ctx.beginPath();
+            ctx.moveTo(arrowStartX, arrowStartY);
+            ctx.lineTo(arrowStartX, arrowStartY - arrowLength);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "#FF7B2C";
+            ctx.stroke();
+            // 箭头三角形
+            ctx.beginPath();
+            ctx.moveTo(arrowStartX-6, arrowStartY - arrowLength + 10);
+            ctx.lineTo(arrowStartX, arrowStartY - arrowLength-2);
+            ctx.lineTo(arrowStartX+6, arrowStartY - arrowLength + 10);
+            ctx.fillStyle = "#FF5E00";
+            ctx.fill();
+            ctx.fillStyle = "#E65317";
+            ctx.font = "bold 14px 'Segoe UI'";
+            ctx.fillText("浮力 ↑", arrowStartX-18, arrowStartY - arrowLength-6);
+            
+            // 添加液体密度或排开体积文字浮标 (趣味)
+            if(currentMode === 'density') {
+                ctx.font = "500 12px 'Segoe UI'";
+                ctx.fillStyle = "#1f4f7a";
+                ctx.fillText(`ρ = ${currentDensity} kg/m³`, beakerX+15, beakerY+25);
+                ctx.fillText(`V排 = 500 cm³ (固定)`, beakerX+15, beakerY+45);
+            } else {
+                let vdisp_cm3 = (visualDisplacedVolume * 1000000).toFixed(0);
+                ctx.fillStyle = "#136b72";
+                ctx.font = "500 12px 'Segoe UI'";
+                ctx.fillText(`ρ = 1000 kg/m³ (水)`, beakerX+15, beakerY+25);
+                ctx.fillText(`V排 = ${vdisp_cm3} cm³`, beakerX+15, beakerY+45);
+            }
+            // 趣味气泡装饰
+            for(let i=0;i<4;i++) {
+                ctx.beginPath();
+                ctx.arc(beakerX+beakerW-25 - i*17, liquidSurfaceY + 10 + i*12, 4, 0, 2*Math.PI);
+                ctx.fillStyle = "rgba(255,255,210,0.8)";
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+        
+        // 封装 roundRect 辅助
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.lineTo(x+w-r, y);
+                this.quadraticCurveTo(x+w, y, x+w, y+r);
+                this.lineTo(x+w, y+h-r);
+                this.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                this.lineTo(x+r, y+h);
+                this.quadraticCurveTo(x, y+h, x, y+h-r);
+                this.lineTo(x, y+r);
+                this.quadraticCurveTo(x, y, x+r, y);
+                return this;
+            };
+        }
+        
+        // 模式切换逻辑
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'density') {
+                modeDensityBtn.classList.add('active');
+                modeVolumeBtn.classList.remove('active');
+                // 重设视觉排开体积为固定值
+                visualDisplacedVolume = fixedDisplacedVolume_m3;
+                // 保证体积模式时存储的排开体积不会影响密度模式绘图
+                // 密度模式下，浮力依赖密度和固定体积
+                updateUIByMode();
+            } else {
+                modeVolumeBtn.classList.add('active');
+                modeDensityBtn.classList.remove('active');
+                // 体积模式: 使用当前的currentDisplacedVolume_m3
+                visualDisplacedVolume = currentDisplacedVolume_m3;
+                updateUIByMode();
+            }
+            drawCanvas();   // 立即刷新
+        }
+        
+        // 绑定事件
+        densitySlider.addEventListener('input', onDensityChange);
+        volumeSlider.addEventListener('input', onVolumeChange);
+        
+        modeDensityBtn.addEventListener('click', () => setMode('density'));
+        modeVolumeBtn.addEventListener('click', () => setMode('volume'));
+        
+        // 初始化默认密度和体积滑块
+        currentDisplacedVolume_m3 = 0.0005; // 500 cm³
+        volumeSlider.value = 500;
+        volumeValueDisplay.innerText = "500 cm³";
+        currentDensity = 1000;
+        densitySlider.value = 1000;
+        densityValueDisplay.innerText = "1000 kg/m³";
+        
+        // 首次更新界面
+        setMode('density');
+        updateForceAndDraw();
+        
+        // 为增加趣味, 滑块微动波纹视觉
+        function pulseForce() {
+            let el = document.querySelector('.force-value');
+            if(el) el.style.transform = 'scale(1.02)';
+            setTimeout(()=>{if(el) el.style.transform = 'scale(1)';}, 120);
+        }
+        const origUpdate = updateForceAndDraw;
+        window.updateForceAndDraw = function() {
+            origUpdate();
+            pulseForce();
+        };
+        updateForceAndDraw = function() {
+            origUpdate();
+            pulseForce();
+        }.bind(this);
+        // 重写事件中调用
+        const superDraw = updateForceAndDraw;
+        densitySlider.addEventListener('input', () => { onDensityChange(); pulseForce(); });
+        volumeSlider.addEventListener('input', () => { onVolumeChange(); pulseForce(); });
+        // 手动调用一次
+        pulseForce();
+    })();
+</script>
+</body>
+</html>
