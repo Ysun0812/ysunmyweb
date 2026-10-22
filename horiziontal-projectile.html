@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>平抛运动的分解与合成 · 无人机空投物资</title>
+<style>
+/* ============================================================
+   全局与主题
+   ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0B1026;
+  --cyan: #38E8FF;
+  --blue: #4A7DFF;
+  --red: #FF5C7A;
+  --green: #4DFFB8;
+  --yellow: #FFD166;
+  --text: #F5F8FF;
+  --muted: #A9B7D0;
+  --line: rgba(255,255,255,0.11);
+}
+
+html, body { min-height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: #0B1026;
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 背景层 */
+.bg-layer { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.bg-layer.glow1 {
+  background: radial-gradient(circle at 14% 10%, rgba(56,232,255,0.17), transparent 42%);
+}
+.bg-layer.glow2 {
+  background: radial-gradient(circle at 86% 84%, rgba(74,125,255,0.20), transparent 46%);
+}
+.bg-layer.grid {
+  background-image:
+    linear-gradient(rgba(56,232,255,0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,232,255,0.055) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 35%, #000 25%, transparent 78%);
+  mask-image: radial-gradient(ellipse at 50% 35%, #000 25%, transparent 78%);
+}
+.bg-layer.stars { opacity: .8; }
+
+/* ============================================================
+   布局
+   ============================================================ */
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100vh;
+}
+
+/* 顶栏 */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 10px 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 34px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.08);
+  flex: 0 0 auto;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .logo {
+  width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
+  background: linear-gradient(135deg, rgba(56,232,255,.28), rgba(74,125,255,.28));
+  border: 1px solid rgba(56,232,255,.5);
+  display: grid; place-items: center;
+  box-shadow: 0 0 20px rgba(56,232,255,.32);
+}
+.brand h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+.brand p { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* 步骤条 */
+.steps { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.step {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 13px 6px 7px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  transition: all .25s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.step .dot {
+  width: 21px; height: 21px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 700;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  flex: 0 0 auto;
+}
+.step.active {
+  color: #fff;
+  background: rgba(56,232,255,0.13);
+  border-color: rgba(56,232,255,0.45);
+  box-shadow: 0 0 20px rgba(56,232,255,0.26);
+}
+.step.active .dot {
+  background: linear-gradient(135deg, #38E8FF, #4A7DFF);
+  color: #04101f; border-color: transparent;
+}
+.step.done { color: var(--green); }
+.step.done .dot {
+  background: rgba(77,255,184,0.18);
+  border-color: rgba(77,255,184,0.55);
+  color: var(--green);
+}
+.step.locked { opacity: .42; }
+.step.clickable { cursor: pointer; }
+.step.clickable:hover { background: rgba(255,255,255,0.08); }
+
+.top-actions { display: flex; gap: 8px; }
+.hidden { display: none !important; }
+
+/* 屏幕 */
+.screen { display: none; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
+.screen.active { display: flex; }
+
+/* 工作区：左控制 / 中舞台+题目 / 右数据+公式+下一步 */
+.workspace {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 320px;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 中列：舞台 + 题目上下紧贴 */
+.mid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+
+/* 面板 */
+.panel {
+  background: rgba(255,255,255,0.055);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 15px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 34px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.panel::-webkit-scrollbar { width: 6px; }
+.panel::-webkit-scrollbar-thumb { background: rgba(56,232,255,.25); border-radius: 99px; }
+
+.panel-title {
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.panel-title::before {
+  content: '';
+  width: 3px; height: 12px; border-radius: 2px;
+  background: linear-gradient(180deg, #38E8FF, #4A7DFF);
+  box-shadow: 0 0 8px rgba(56,232,255,.7);
+}
+
+/* 控件 */
+.ctrl { display: flex; flex-direction: column; gap: 7px; }
+.ctrl-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12.5px; color: var(--muted);
+}
+.ctrl-head .val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 6px; border-radius: 999px;
+  background: linear-gradient(90deg, rgba(56,232,255,.85), rgba(74,125,255,.45));
+  outline: none; cursor: pointer;
+  border: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffffff, #38E8FF 58%, #16708c);
+  border: 2px solid rgba(255,255,255,0.92);
+  box-shadow: 0 0 12px rgba(56,232,255,0.85);
+  cursor: pointer;
+  transition: transform .12s;
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.14); }
+input[type="range"]::-moz-range-thumb {
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #38E8FF; border: 2px solid #fff;
+  box-shadow: 0 0 12px rgba(56,232,255,0.85);
+  cursor: pointer;
+}
+input[type="range"]:disabled {
+  background: rgba(255,255,255,0.12);
+  cursor: not-allowed;
+}
+input[type="range"]:disabled::-webkit-slider-thumb {
+  background: #5a6780; box-shadow: none; cursor: not-allowed;
+}
+
+/* 按钮 */
+.btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.17);
+  background: rgba(255,255,255,0.07);
+  color: var(--text);
+  cursor: pointer;
+  transition: all .18s ease;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.14);
+  border-color: rgba(56,232,255,0.55);
+  box-shadow: 0 0 16px rgba(56,232,255,0.22);
+}
+.btn:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+.btn:disabled { opacity: .38; cursor: not-allowed; }
+
+.btn.primary {
+  background: linear-gradient(135deg, #38E8FF, #4A7DFF);
+  color: #04101f;
+  font-weight: 700;
+  border: none;
+  box-shadow: 0 6px 22px rgba(56,232,255,0.32);
+}
+.btn.primary:hover:not(:disabled) { box-shadow: 0 8px 32px rgba(56,232,255,0.6); }
+.btn.primary:disabled {
+  background: rgba(255,255,255,0.09);
+  color: rgba(255,255,255,0.35);
+  box-shadow: none;
+}
+.btn.danger { border-color: rgba(255,92,122,.4); color: #ffb3c1; }
+.btn.danger:hover:not(:disabled) { background: rgba(255,92,122,.15); border-color: rgba(255,92,122,.8); }
+
+.btn.lg { padding: 13px 30px; font-size: 15px; border-radius: 12px; }
+.btn.tiny { padding: 6px 11px; font-size: 12px; border-radius: 8px; }
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 6px 22px rgba(56,232,255,0.34); }
+  50%      { box-shadow: 0 8px 40px rgba(56,232,255,0.8); }
+}
+.btn.primary.ready { animation: pulseGlow 1.7s ease-in-out infinite; }
+
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
+
+/* 开关 */
+.switches { display: flex; flex-direction: column; gap: 8px; }
+.switch {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 12.5px; color: var(--muted); cursor: pointer;
+  user-select: none;
+}
+.switch input { display: none; }
+.switch .track {
+  width: 34px; height: 19px; border-radius: 999px; flex: 0 0 auto;
+  background: rgba(255,255,255,0.13);
+  border: 1px solid rgba(255,255,255,0.18);
+  position: relative; transition: all .22s ease;
+}
+.switch .track::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #8fa0bd; transition: all .22s ease;
+}
+.switch input:checked + .track {
+  background: rgba(56,232,255,0.3);
+  border-color: rgba(56,232,255,0.7);
+  box-shadow: 0 0 12px rgba(56,232,255,0.4);
+}
+.switch input:checked + .track::after {
+  left: 17px; background: #38E8FF; box-shadow: 0 0 8px #38E8FF;
+}
+.switch input:checked ~ span { color: var(--text); }
+
+/* 舞台：占满中列剩余高度 */
+.stage-wrap {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(9,14,32,0.8);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.06);
+  flex: 1 1 auto;
+  min-height: 260px;
+}
+.stage-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* 题目卡：贴在舞台正下方 */
+.quiz-panel {
+  flex: 0 0 auto;
+  max-height: 44vh;
+  overflow-y: auto;
+  background: rgba(255,255,255,0.055);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 34px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.quiz-panel::-webkit-scrollbar { width: 6px; }
+.quiz-panel::-webkit-scrollbar-thumb { background: rgba(56,232,255,.25); border-radius: 99px; }
+
+/* 数据面板 */
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.data-item {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 9px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.data-item .k {
+  font-size: 11px; color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.data-item .v {
+  margin-left: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13.5px; font-weight: 700;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+.data-item .u { font-size: 10px; color: var(--muted); }
+.data-item.blue .v { color: #7fa5ff; }
+.data-item.red .v { color: #ff8fa4; }
+.data-item.green .v { color: var(--green); }
+.data-item.yellow .v { color: var(--yellow); }
+
+/* 公式 */
+.formula-list { display: flex; flex-direction: column; gap: 6px; }
+.formula {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(56,232,255,0.055);
+  border-left: 2px solid rgba(56,232,255,0.55);
+  color: #cfe3f7;
+  letter-spacing: .2px;
+}
+.formula.hl { border-left-color: var(--green); background: rgba(77,255,184,0.07); }
+.formula.blue { border-left-color: var(--blue); background: rgba(74,125,255,0.08); }
+.formula.red  { border-left-color: var(--red);  background: rgba(255,92,122,0.07); }
+.formula.green{ border-left-color: var(--green); background: rgba(77,255,184,0.07); }
+
+/* 本关目标卡 */
+.goal-card {
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #c3d0e6;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(56,232,255,0.06);
+  border: 1px solid rgba(56,232,255,0.18);
+}
+
+/* 答题 */
+.quiz-item { display: flex; flex-direction: column; gap: 8px; }
+.quiz-q { font-size: 13.5px; font-weight: 600; display: flex; gap: 8px; align-items: flex-start; }
+.quiz-q .idx {
+  flex: 0 0 auto;
+  width: 20px; height: 20px; border-radius: 6px;
+  background: rgba(56,232,255,0.16);
+  border: 1px solid rgba(56,232,255,0.4);
+  color: var(--cyan);
+  font-size: 11px; font-weight: 700;
+  display: grid; place-items: center;
+  margin-top: 1px;
+}
+.options { display: flex; gap: 8px; flex-wrap: wrap; padding-left: 28px; }
+.option {
+  padding: 7px 13px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.13);
+  background: rgba(255,255,255,0.04);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all .16s ease;
+  color: #d6e2f5;
+}
+.option:hover { background: rgba(255,255,255,0.1); border-color: rgba(56,232,255,0.45); }
+.option.correct {
+  background: rgba(77,255,184,0.16);
+  border-color: rgba(77,255,184,0.75);
+  color: var(--green);
+  font-weight: 600;
+  box-shadow: 0 0 16px rgba(77,255,184,0.3);
+  cursor: default;
+}
+.option.wrong {
+  background: rgba(255,92,122,0.16);
+  border-color: rgba(255,92,122,0.75);
+  color: var(--red);
+  animation: shakeX .38s ease;
+}
+.option:disabled {
+  cursor: default;
+  opacity: 1;
+  -webkit-text-fill-color: currentColor;
+}
+@keyframes shakeX {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+.quiz-feedback { font-size: 12px; color: var(--muted); min-height: 16px; padding-left: 28px; }
+.quiz-feedback.ok { color: var(--green); }
+.quiz-feedback.no { color: #ff9aab; }
+
+/* 右栏底部：下一步 */
+.next-block {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+.lock-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.lock-hint .ico { flex: 0 0 auto; margin-top: 1px; }
+.lock-hint.ok { color: var(--green); }
+.next-block .btn.primary { width: 100%; padding: 12px; font-size: 14px; }
+
+/* ============================================================
+   第0层 情境导入
+   ============================================================ */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0,1.05fr) minmax(0,1fr);
+  gap: 26px;
+  background: rgba(255,255,255,0.055);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 34px 38px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 16px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+  align-items: center;
+  flex: 1;
+}
+.badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  background: rgba(56,232,255,0.11);
+  border: 1px solid rgba(56,232,255,0.4);
+  margin-bottom: 18px;
+  width: fit-content;
+}
+.badge::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cyan); box-shadow: 0 0 10px var(--cyan);
+}
+.hero h2 {
+  font-size: clamp(22px, 2.6vw, 34px);
+  line-height: 1.35;
+  letter-spacing: .5px;
+  margin-bottom: 16px;
+  background: linear-gradient(120deg, #ffffff 20%, #8fe6ff 70%, #6f9bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero p {
+  font-size: 14.5px;
+  line-height: 2;
+  color: #c3d0e6;
+  margin-bottom: 22px;
+}
+.hero p b { color: var(--cyan); font-weight: 600; }
+.hint-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 28px;
+}
+.hint-list li {
+  font-size: 13px;
+  color: var(--muted);
+  padding-left: 22px;
+  position: relative;
+  line-height: 1.6;
+}
+.hint-list li::before {
+  content: '';
+  position: absolute; left: 4px; top: 7px;
+  width: 7px; height: 7px; border-radius: 2px;
+  background: linear-gradient(135deg, #38E8FF, #4A7DFF);
+  box-shadow: 0 0 8px rgba(56,232,255,.7);
+}
+.hero-visual {
+  position: relative;
+  height: clamp(280px, 44vh, 430px);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(56,232,255,0.2);
+  background: rgba(8,13,32,0.6);
+  box-shadow: inset 0 0 50px rgba(56,232,255,0.08);
+}
+.hero-visual canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ============================================================
+   第4层 总结
+   ============================================================ */
+.summary-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 16px;
+  flex: 1;
+}
+.summary-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-content: start;
+}
+.sum-card {
+  background: rgba(255,255,255,0.055);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 15px 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 26px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.07);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.sum-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,0.4); }
+.sum-card h3 {
+  font-size: 13px;
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text);
+}
+.sum-card h3 .tag {
+  width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
+}
+.sum-card .f {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: #cfe3f7;
+  line-height: 2;
+}
+.sum-card.blue  h3 .tag { background: var(--blue);  box-shadow: 0 0 10px var(--blue); }
+.sum-card.red   h3 .tag { background: var(--red);   box-shadow: 0 0 10px var(--red); }
+.sum-card.green h3 .tag { background: var(--green); box-shadow: 0 0 10px var(--green); }
+.sum-card.yellow h3 .tag { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); }
+
+.summary-figure {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(9,14,32,0.8);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.42);
+  min-height: 340px;
+}
+.summary-figure canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.loop-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px;
+  background: rgba(56,232,255,0.055);
+  border: 1px solid rgba(56,232,255,0.2);
+  border-radius: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.loop-bar .node {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.13);
+  color: #dbe7f8;
+  font-size: 12.5px;
+}
+.loop-bar .node.on {
+  background: rgba(56,232,255,0.16);
+  border-color: rgba(56,232,255,0.55);
+  color: var(--cyan);
+  box-shadow: 0 0 16px rgba(56,232,255,.3);
+}
+.loop-bar .arrow { color: rgba(56,232,255,.6); }
+
+.summary-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 38px;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(12,20,44,0.92);
+  border: 1px solid rgba(56,232,255,0.5);
+  color: var(--text);
+  padding: 12px 26px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: all .3s cubic-bezier(.2,.9,.3,1.2);
+  z-index: 999;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 30px rgba(56,232,255,.25);
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: rgba(77,255,184,.7); box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 34px rgba(77,255,184,.4); }
+.toast.no { border-color: rgba(255,92,122,.7); box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 34px rgba(255,92,122,.35); }
+
+/* ============================================================
+   响应式
+   ============================================================ */
+@media (max-width: 1240px) {
+  .workspace { grid-template-columns: 230px minmax(0,1fr) 290px; }
+}
+
+@media (max-width: 1080px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: none;
+  }
+  .mid-col { order: 0; flex: none; }
+  .stage-wrap { flex: none; height: clamp(320px, 46vh, 460px); }
+  .quiz-panel { max-height: none; overflow: visible; }
+  .panel { max-height: none; overflow: visible; }
+  .left { order: 1; }
+  .right { order: 2; }
+  .next-block { margin-top: 0; }
+  .hero { grid-template-columns: 1fr; padding: 26px 22px; }
+  .hero-visual { height: 300px; }
+  .summary-wrap { grid-template-columns: 1fr; }
+  .summary-cards { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 640px) {
+  .app { padding: 10px 10px 18px; gap: 10px; }
+  .topbar { padding: 10px 12px; gap: 10px; }
+  .brand h1 { font-size: 14px; }
+  .steps { width: 100%; margin-left: 0; justify-content: flex-start; overflow-x: auto; }
+  .step { font-size: 11.5px; padding: 5px 10px 5px 6px; }
+  .step .dot { width: 18px; height: 18px; font-size: 10px; }
+  .summary-cards { grid-template-columns: 1fr; }
+  .options { padding-left: 0; }
+  .quiz-feedback { padding-left: 0; }
+  .data-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-layer glow1"></div>
+<div class="bg-layer glow2"></div>
+<div class="bg-layer grid"></div>
+<div class="bg-layer stars" id="stars"></div>
+
+<div class="app">
+
+  <!-- ================= 顶栏 ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M2 17c3 0 3-6 6-6s3 6 6 6 3-6 6-6" stroke="#38E8FF" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="17.5" cy="6.5" r="2.5" stroke="#4DFFB8" stroke-width="1.8"/>
+        </svg>
+      </div>
+      <div>
+        <h1>平抛运动的分解与合成</h1>
+        <p>无人机水平空投物资 · 10 分钟微格教学</p>
+      </div>
+    </div>
+
+    <nav class="steps" id="steps"></nav>
+
+    <div class="top-actions">
+      <button class="btn tiny hidden" id="btnTeacherJump">教师跳关</button>
+    </div>
+  </header>
+
+  <!-- ================= 第0层：情境导入 ================= -->
+  <section class="screen" id="screen0">
+    <div class="hero">
+      <div class="hero-text">
+        <div class="badge">情境导入</div>
+        <h2>无人机水平飞行<br/>空投救援物资</h2>
+        <p>
+          无人机在某一高度 <b>水平匀速飞行</b>，当它飞到指定位置时释放救援物资。<br/>
+          物资离开无人机后，做什么运动？它的 <b>水平方向</b> 和 <b>竖直方向</b> 分别怎样运动？
+          两个分运动又怎样合成实际的飞行轨迹？
+        </p>
+        <ul class="hint-list">
+          <li>无人机：水平匀速飞行，释放瞬间高度为 h，速度为 v₀</li>
+          <li>物资：离开无人机后只受重力作用（不计空气阻力）</li>
+          <li>请观察：物资的水平位置和竖直位置分别如何变化？</li>
+        </ul>
+        <button class="btn primary lg" id="btnStart">开始任务 →</button>
+      </div>
+      <div class="hero-visual">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 第1~3层：工作区 ================= -->
+  <section class="screen" id="screenWork">
+
+    <div class="workspace">
+
+      <!-- 左：控制面板 -->
+      <aside class="panel left">
+        <div class="panel-title">控制面板</div>
+
+        <div class="ctrl">
+          <div class="ctrl-head"><label for="rangeV0">初速度 v₀</label><span class="val" id="valV0">12.0 m/s</span></div>
+          <input type="range" id="rangeV0" min="5" max="25" step="0.5" value="12" />
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-head"><label for="rangeH">释放高度 h</label><span class="val" id="valH">20 m</span></div>
+          <input type="range" id="rangeH" min="5" max="45" step="1" value="20" />
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-head"><label for="rangeT">时间 t</label><span class="val" id="valT">0.00 s</span></div>
+          <input type="range" id="rangeT" min="0" max="2" step="0.01" value="0" />
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" id="btnPlay">▶ 播放</button>
+          <button class="btn" id="btnSpeed">1.0×</button>
+        </div>
+
+        <div class="btn-row hidden" id="task3Btns">
+          <button class="btn" id="btnConnect">连点成轨迹</button>
+          <button class="btn primary" id="btnLaunch">投放</button>
+        </div>
+
+        <div class="panel-title">显示选项</div>
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="chkComponents" checked><span class="track"></span><span>显示分运动</span></label>
+          <label class="switch"><input type="checkbox" id="chkVectors"><span class="track"></span><span>显示速度矢量</span></label>
+          <label class="switch"><input type="checkbox" id="chkResultant"><span class="track"></span><span>速度合成（平行四边形）</span></label>
+          <label class="switch"><input type="checkbox" id="chkStrobe" checked><span class="track"></span><span>显示频闪点</span></label>
+          <label class="switch"><input type="checkbox" id="chkTrajectory"><span class="track"></span><span>显示实际轨迹</span></label>
+          <label class="switch"><input type="checkbox" id="chkRect" checked><span class="track"></span><span>显示位移合成矩形</span></label>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn" id="btnResetLayer">重置本关</button>
+          <button class="btn danger" id="btnResetAll">重置全部</button>
+        </div>
+      </aside>
+
+      <!-- 中：Canvas 舞台 + 题目卡（上下紧贴） -->
+      <div class="mid-col">
+        <div class="stage-wrap">
+          <canvas id="stageCanvas"></canvas>
+        </div>
+        <div class="quiz-panel" id="quizPanel"></div>
+      </div>
+
+      <!-- 右：目标 + 实时数据 + 本关公式 + 下一步 -->
+      <aside class="panel right">
+        <div class="panel-title">本关目标</div>
+        <div class="goal-card" id="goalCard"></div>
+
+        <div class="panel-title">实时数据</div>
+        <div class="data-grid">
+          <div class="data-item"><span class="k">t</span><span class="v" id="d-t">0.00</span><span class="u">s</span></div>
+          <div class="data-item"><span class="k">x</span><span class="v" id="d-x">0.00</span><span class="u">m</span></div>
+          <div class="data-item"><span class="k">y</span><span class="v" id="d-y">0.00</span><span class="u">m</span></div>
+          <div class="data-item blue"><span class="k">vx</span><span class="v" id="d-vx">0.00</span><span class="u">m/s</span></div>
+          <div class="data-item red"><span class="k">vy</span><span class="v" id="d-vy">0.00</span><span class="u">m/s</span></div>
+          <div class="data-item green"><span class="k">v</span><span class="v" id="d-v">0.00</span><span class="u">m/s</span></div>
+          <div class="data-item yellow" style="grid-column:1 / -1"><span class="k">θ</span><span class="v" id="d-th">0.0</span><span class="u">°（相对水平）</span></div>
+        </div>
+
+        <div class="panel-title">本关公式</div>
+        <div class="formula-list" id="formulaList"></div>
+
+        <div class="next-block">
+          <div class="lock-hint" id="lockHint">
+            <span class="ico">🔒</span>
+            <span id="lockText">请先完成任务</span>
+          </div>
+          <button class="btn primary" id="btnNext" disabled>下一步</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 第4层：总结 ================= -->
+  <section class="screen" id="screen4">
+    <div class="summary-wrap">
+      <div class="summary-cards">
+        <div class="sum-card blue">
+          <h3><span class="tag"></span>水平方向</h3>
+          <div class="f">
+            匀速直线运动<br/>
+            vx = v₀（不变）<br/>
+            x = v₀·t
+          </div>
+        </div>
+        <div class="sum-card red">
+          <h3><span class="tag"></span>竖直方向</h3>
+          <div class="f">
+            自由落体运动<br/>
+            vy = g·t<br/>
+            y = ½·g·t²
+          </div>
+        </div>
+        <div class="sum-card green">
+          <h3><span class="tag"></span>合速度</h3>
+          <div class="f">
+            v = √(vx² + vy²)<br/>
+            tanθ = vy / vx<br/>
+            方向沿轨迹切线
+          </div>
+        </div>
+        <div class="sum-card yellow">
+          <h3><span class="tag"></span>合轨迹</h3>
+          <div class="f">
+            y = g·x² / (2v₀²)<br/>
+            轨迹是一条抛物线<br/>
+            落点 x = v₀·√(2h/g)
+          </div>
+        </div>
+
+        <div class="loop-bar">
+          <span class="node on">情境</span><span class="arrow">→</span>
+          <span class="node on">分运动</span><span class="arrow">→</span>
+          <span class="node on">分速度</span><span class="arrow">→</span>
+          <span class="node on">轨迹合成</span><span class="arrow">→</span>
+          <span class="node on">命中验证</span>
+        </div>
+
+        <div class="summary-actions">
+          <button class="btn" id="btnReplay">重新演示</button>
+          <button class="btn primary" id="btnHome">回到开头</button>
+        </div>
+      </div>
+
+      <div class="summary-figure">
+        <canvas id="finalCanvas"></canvas>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. 常量与状态管理
+   ============================================================ */
+const G = 9.8;
+const STROBE_DT = 0.2;
+const TARGET_V0 = 12;
+const TARGET_TOL = 1.0;
+const LAYER_NAMES = ['情境导入', '看分运动', '拼速度', '合成轨迹', '总结'];
+const STORAGE_KEY = 'flatthrow_progress_v1';
+
+const QUIZZES = {
+  1: [
+    { q: '水平方向小球的速度怎样变化？', opts: ['越来越快', '保持不变', '越来越慢'], correct: 1 },
+    { q: '竖直方向小球的速度怎样变化？', opts: ['匀速下落', '越来越快', '先快后慢'], correct: 1 },
+    { q: '平抛运动可以分解为哪两个分运动？',
+      opts: ['水平匀速直线运动 + 竖直自由落体运动', '水平匀加速运动 + 竖直匀速运动', '两个方向都匀速'],
+      correct: 0 }
+  ],
+  2: [
+    { q: '水平分速度 vx 的大小怎样变化？', opts: ['保持不变', '越来越大', '越来越小'], correct: 0 },
+    { q: '竖直分速度 vy 的大小怎样变化？', opts: ['保持不变', '越来越大', '先大后小'], correct: 1 },
+    { q: '合速度 v 的方向有什么特点？',
+      opts: ['始终水平', '越来越接近竖直向下，并沿轨迹切线方向', '始终竖直向下'], correct: 1 }
+  ],
+  3: [
+    { q: '高度不变时，增大初速度 v₀，水平射程怎样变化？', opts: ['增大', '减小', '不变'], correct: 0 },
+    { q: '平抛运动的实际轨迹是怎样得到的？',
+      opts: ['把水平轨迹和竖直轨迹简单拼接', '同一时刻的水平分位移和竖直分位移合成位置点，连点成轨迹', '只看竖直方向'],
+      correct: 1 }
+  ]
+};
+
+const NEXT_TEXT = {
+  1: '下一步：拼速度',
+  2: '下一步：合成轨迹',
+  3: '下一步：总结'
+};
+
+/* 各关公式：只显示本关用得到的 */
+const LAYER_FORMULAS = {
+  1: [
+    { t: 'x = v₀ · t', c: 'blue' },
+    { t: 'y = ½ · g · t²', c: 'red' },
+    { t: 'vx = v₀（恒定）', c: 'blue' },
+    { t: 'vy = g · t（均匀增大）', c: 'red' }
+  ],
+  2: [
+    { t: 'vx = v₀（恒定）', c: 'blue' },
+    { t: 'vy = g · t', c: 'red' },
+    { t: 'v = √(vx² + vy²)', c: 'hl' },
+    { t: 'tanθ = vy / vx', c: 'hl' }
+  ],
+  3: [
+    { t: 'x = v₀ · t', c: 'blue' },
+    { t: 'y = ½ · g · t²', c: 'red' },
+    { t: 'y = g · x² / (2v₀²)', c: 'hl' },
+    { t: '落点 x = v₀ · √(2h/g)', c: 'green' }
+  ]
+};
+
+/* 各关目标说明：解释为什么用这些公式 */
+const LAYER_GOALS = {
+  1: '观察频闪点：水平方向等间距（匀速），竖直方向间距越来越大（自由落体）。答对 3 题并完整播放一次动画。',
+  2: '拖动时间滑块观察速度矢量：vx 长度不变、vy 越来越长。打开“速度合成”看合速度方向。答对 3 题。',
+  3: '调节初速度 v₀，让物资落入地面目标区（h 固定为 20 m）。可用“连点成轨迹”辅助判断。答对 2 题。'
+};
+
+const state = {
+  layer: 0,
+  unlocked: 0,
+
+  playing: false,
+  time: 0,
+  v0: 12,
+  h: 20,
+  speed: 1,
+
+  showComponents: true,
+  showVectors: false,
+  showResultant: false,
+  showStrobe: true,
+  showTrajectory: false,
+  showRect: true,
+
+  teacherMode: false,
+
+  playedOnce: false,
+  dragTimes: [],
+  vectorOpened: false,
+  trajectoryRevealed: false,
+
+  launched: false,
+  landed: false,
+  hit: false,
+  landingX: null,
+
+  answers: { 1: [null, null, null], 2: [null, null, null], 3: [null, null] },
+  tasks: { 1: false, 2: false, 3: false }
+};
+
+let particles = [];
+
+/* ============================================================
+   2. 工具函数
+   ============================================================ */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+function fitCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 0;
+  const h = cv.clientHeight || 0;
+  const bw = Math.round(w * dpr);
+  const bh = Math.round(h * dpr);
+  if (bw > 0 && bh > 0 && (cv.width !== bw || cv.height !== bh)) {
+    cv.width = bw;
+    cv.height = bh;
+  }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+
+function pickStep(scale) {
+  const cands = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500];
+  for (const s of cands) if (s * scale >= 56) return s;
+  return 1000;
+}
+
+let toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2200);
+}
+
+/* ============================================================
+   3. 物理计算
+   ============================================================ */
+function totalTime() { return Math.sqrt(2 * state.h / G); }
+function targetDistance() { return TARGET_V0 * Math.sqrt(2 * state.h / G); }
+
+function physicsAt(t) {
+  const x = state.v0 * t;
+  const drop = 0.5 * G * t * t;
+  const Y = state.h - drop;
+  const vx = state.v0;
+  const vy = G * t;
+  const v = Math.hypot(vx, vy);
+  const theta = Math.atan2(vy, vx) * 180 / Math.PI;
+  return { x, drop, Y, vx, vy, v, theta };
+}
+
+/* ============================================================
+   4. Canvas 渲染
+   ============================================================ */
+function computeView(w, h, hh, v0) {
+  const T = Math.sqrt(2 * hh / G);
+  const range = v0 * T;
+
+  const padL = 66, padR = 48, padT = 62, padB = 74;
+  const availW = Math.max(120, w - padL - padR);
+  const availH = Math.max(100, h - padT - padB);
+
+  const worldW = Math.max(range, 10) * 1.14 + 4;
+  const worldH = Math.max(hh, 6) * 1.22 + 2;
+  const scale = Math.min(availW / worldW, availH / worldH);
+  const originX = padL + (availW - worldW * scale) / 2;
+  const groundY = h - padB;
+
+  const toS = (X, Y) => ({ x: originX + X * scale, y: groundY - Y * scale });
+  return { scale, originX, groundY, toS };
+}
+
+function drawArrow(ctx, x1, y1, x2, y2, color, width) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 2) return;
+  const ux = dx / len, uy = dy / len;
+  const head = Math.min(13, len * 0.42);
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = width || 3;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2 - ux * head * 0.85, y2 - uy * head * 0.85);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - ux * head - uy * head * 0.44, y2 - uy * head + ux * head * 0.44);
+  ctx.lineTo(x2 - ux * head + uy * head * 0.44, y2 - uy * head - ux * head * 0.44);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLabel(ctx, x, y, text, color, align) {
+  ctx.save();
+  ctx.font = '700 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.textAlign = align || 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawDrone(ctx, cx, cy, time) {
+  const bob = Math.sin(time * 2.4) * 2.6;
+  ctx.save();
+  ctx.translate(cx, cy + bob);
+
+  const gl = ctx.createRadialGradient(0, 0, 2, 0, 0, 46);
+  gl.addColorStop(0, 'rgba(56,232,255,0.20)');
+  gl.addColorStop(1, 'rgba(56,232,255,0)');
+  ctx.fillStyle = gl;
+  ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(172,202,242,0.95)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-9, 0); ctx.lineTo(-26, -9);
+  ctx.moveTo(9, 0);  ctx.lineTo(26, -9);
+  ctx.stroke();
+
+  const spin = time * 26;
+  for (const rx of [-26, 26]) {
+    ctx.beginPath();
+    ctx.ellipse(rx, -9, 13, 3.6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(56,232,255,0.11)';
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(56,232,255,0.95)';
+    ctx.lineWidth = 2.4;
+    const a = spin;
+    ctx.beginPath();
+    ctx.moveTo(rx - Math.cos(a) * 12, -9 - Math.sin(a) * 3.2);
+    ctx.lineTo(rx + Math.cos(a) * 12, -9 + Math.sin(a) * 3.2);
+    ctx.stroke();
+
+    ctx.beginPath(); ctx.arc(rx, -9, 2.6, 0, Math.PI * 2);
+    ctx.fillStyle = '#38E8FF';
+    ctx.shadowColor = '#38E8FF'; ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  const bg = ctx.createLinearGradient(0, -12, 0, 12);
+  bg.addColorStop(0, 'rgba(50,84,146,0.98)');
+  bg.addColorStop(1, 'rgba(21,36,70,0.98)');
+  roundRect(ctx, -18, -11, 36, 22, 9);
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.strokeStyle = 'rgba(56,232,255,0.9)'; ctx.lineWidth = 1.8; ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(0, -1, 4.6, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(56,232,255,0.9)';
+  ctx.shadowColor = '#38E8FF'; ctx.shadowBlur = 14;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+function drawBox(ctx, cx, cy, size) {
+  const s = size;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = '#FFD166';
+  ctx.shadowBlur = 16;
+
+  roundRect(ctx, -s / 2, -s / 2, s, s, 3.5);
+  const g = ctx.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+  g.addColorStop(0, '#FFE39B');
+  g.addColorStop(1, '#E8A93C');
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(122,72,10,0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-s / 2, 0); ctx.lineTo(s / 2, 0);
+  ctx.moveTo(0, -s / 2); ctx.lineTo(0, s / 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawStageBg(ctx, w, h) {
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, 'rgba(15,24,54,0.96)');
+  g.addColorStop(1, 'rgba(7,12,30,0.98)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(56,232,255,0.05)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 0; x < w; x += 42) { ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, h); }
+  for (let y = 0; y < h; y += 42) { ctx.moveTo(0, y + .5); ctx.lineTo(w, y + .5); }
+  ctx.stroke();
+}
+
+function drawGround(ctx, w, h, groundY, scale, originX) {
+  const g = ctx.createLinearGradient(0, groundY, 0, h);
+  g.addColorStop(0, 'rgba(56,232,255,0.15)');
+  g.addColorStop(1, 'rgba(56,232,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, groundY, w, h - groundY);
+
+  ctx.strokeStyle = 'rgba(56,232,255,0.62)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'rgba(56,232,255,0.6)';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(0, groundY + 1);
+  ctx.lineTo(w, groundY + 1);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const step = pickStep(scale);
+  ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let m = 0; m * scale < w; m += step) {
+    const sx = originX + m * scale;
+    if (sx < -40 || sx > w + 40) continue;
+    ctx.strokeStyle = 'rgba(56,232,255,0.32)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, groundY + 2);
+    ctx.lineTo(sx, groundY + 9);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(169,183,208,0.85)';
+    ctx.fillText(m + ' m', sx, groundY + 14);
+  }
+}
+
+function drawSceneCore(ctx, w, h, now, o) {
+  drawStageBg(ctx, w, h);
+
+  const T = Math.sqrt(2 * o.hh / G);
+  const t = clamp(o.t, 0, T);
+  const v0 = o.v0;
+  const hh = o.hh;
+
+  const view = computeView(w, h, hh, v0);
+  const scale = view.scale;
+  const originX = view.originX;
+  const groundY = view.groundY;
+  const toS = view.toS;
+
+  drawGround(ctx, w, h, groundY, scale, originX);
+
+  const startPt = toS(0, hh);
+
+  if (o.showTarget) {
+    const td = targetDistance();
+    const a = toS(td - TARGET_TOL, 0);
+    const b = toS(td + TARGET_TOL, 0);
+    const tw = Math.max(b.x - a.x, 14);
+
+    const tg = ctx.createLinearGradient(0, groundY - 140, 0, groundY);
+    tg.addColorStop(0, 'rgba(77,255,184,0)');
+    tg.addColorStop(1, 'rgba(77,255,184,0.30)');
+    ctx.fillStyle = tg;
+    ctx.fillRect(a.x, groundY - 140, tw, 140);
+
+    ctx.save();
+    ctx.strokeStyle = '#4DFFB8';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#4DFFB8';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.moveTo(a.x, groundY + 1);
+    ctx.lineTo(a.x + tw, groundY + 1);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = '#4DFFB8';
+    ctx.font = '700 11.5px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.shadowColor = '#4DFFB8';
+    ctx.shadowBlur = 8;
+    ctx.fillText('目标区', a.x + tw / 2, groundY - 16);
+    ctx.fillText(td.toFixed(1) + ' m', a.x + tw / 2, groundY - 32);
+    ctx.restore();
+  }
+
+  if (o.showTraj) {
+    ctx.save();
+    ctx.beginPath();
+    const N = 150;
+    for (let i = 0; i <= N; i++) {
+      const tt = T * i / N;
+      const p = toS(v0 * tt, hh - 0.5 * G * tt * tt);
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.strokeStyle = '#FFD166';
+    ctx.lineWidth = 2.6;
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255,209,102,0.85)';
+    ctx.shadowBlur = 14;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (o.showStrobe) {
+    for (let ts = 0; ts <= t + 1e-6; ts += STROBE_DT) {
+      const px = v0 * ts;
+      const py = hh - 0.5 * G * ts * ts;
+      const sp = toS(px, py);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 3.2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,209,102,0.95)';
+      ctx.shadowColor = '#FFD166';
+      ctx.shadowBlur = 9;
+      ctx.fill();
+      ctx.restore();
+
+      if (o.showComps) {
+        const hp = toS(px, 0);
+        ctx.beginPath();
+        ctx.arc(hp.x, hp.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(74,125,255,0.95)';
+        ctx.fill();
+
+        const vp = toS(0, py);
+        ctx.beginPath();
+        ctx.arc(vp.x, vp.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,92,122,0.95)';
+        ctx.fill();
+      }
+    }
+  }
+
+  const cur = toS(v0 * t, hh - 0.5 * G * t * t);
+
+  if (o.showComps) {
+    ctx.save();
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = 'rgba(74,125,255,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(cur.x, cur.y);
+    ctx.lineTo(cur.x, groundY);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,92,122,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(cur.x, cur.y);
+    ctx.lineTo(originX, cur.y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cur.x, groundY, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#4A7DFF';
+    ctx.shadowColor = '#4A7DFF';
+    ctx.shadowBlur = 14;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(originX, cur.y, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF5C7A';
+    ctx.shadowColor = '#FF5C7A';
+    ctx.shadowBlur = 14;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (o.showRect) {
+    const corner = toS(v0 * t, hh);
+    ctx.save();
+    ctx.setLineDash([7, 6]);
+    ctx.lineWidth = 1.8;
+
+    ctx.strokeStyle = 'rgba(74,125,255,0.9)';
+    ctx.shadowColor = 'rgba(74,125,255,0.7)';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(startPt.x, startPt.y);
+    ctx.lineTo(corner.x, corner.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,92,122,0.9)';
+    ctx.shadowColor = 'rgba(255,92,122,0.7)';
+    ctx.beginPath();
+    ctx.moveTo(corner.x, corner.y);
+    ctx.lineTo(cur.x, cur.y);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(startPt.x, startPt.y);
+    ctx.lineTo(cur.x, cur.y);
+    ctx.moveTo(cur.x, cur.y);
+    ctx.lineTo(cur.x, corner.y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,209,102,0.85)';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(255,209,102,0.6)';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(startPt.x, startPt.y);
+    ctx.lineTo(cur.x, cur.y);
+    ctx.stroke();
+    ctx.restore();
+
+    drawLabel(ctx, (startPt.x + corner.x) / 2, startPt.y - 12, 'x', '#4A7DFF', 'center');
+    drawLabel(ctx, corner.x + 12, (corner.y + cur.y) / 2, 'y', '#FF5C7A', 'left');
+  }
+
+  if (o.showVecs || o.showRes) {
+    const vx = v0, vy = G * t;
+    const K = 3.6;
+    let lenX = vx > 0.01 ? clamp(vx * K, 18, 150) : 0;
+    let lenY = vy > 0.05 ? clamp(vy * K, 10, 150) : 0;
+
+    const diag = Math.hypot(lenX, lenY);
+    if (diag > 175) { const k = 175 / diag; lenX *= k; lenY *= k; }
+
+    if (o.showVecs) {
+      if (lenX > 0) {
+        drawArrow(ctx, cur.x, cur.y, cur.x + lenX, cur.y, '#4A7DFF', 3);
+        drawLabel(ctx, cur.x + lenX + 9, cur.y + 2, 'vx', '#4A7DFF');
+      }
+      if (lenY > 0) {
+        drawArrow(ctx, cur.x, cur.y, cur.x, cur.y + lenY, '#FF5C7A', 3);
+        drawLabel(ctx, cur.x + 9, cur.y + lenY + 8, 'vy', '#FF5C7A');
+      }
+    }
+
+    if (o.showRes && lenY > 0 && lenX > 0) {
+      ctx.save();
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(cur.x + lenX, cur.y);
+      ctx.lineTo(cur.x + lenX, cur.y + lenY);
+      ctx.moveTo(cur.x, cur.y + lenY);
+      ctx.lineTo(cur.x + lenX, cur.y + lenY);
+      ctx.stroke();
+      ctx.restore();
+
+      drawArrow(ctx, cur.x, cur.y, cur.x + lenX, cur.y + lenY, '#4DFFB8', 3.6);
+      const mx = cur.x + lenX * 0.55 + 10;
+      const my = cur.y + lenY * 0.55 + 8;
+      drawLabel(ctx, mx, my, 'v', '#4DFFB8');
+    }
+  }
+
+  ctx.save();
+  ctx.setLineDash([3, 4]);
+  ctx.strokeStyle = 'rgba(56,232,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(originX, startPt.y);
+  ctx.lineTo(originX, groundY);
+  ctx.stroke();
+  ctx.restore();
+
+  drawDrone(ctx, startPt.x, startPt.y - 26, now / 1000);
+  drawBox(ctx, cur.x, cur.y, 16);
+
+  if (o.showLanding && o.landingX != null) {
+    const lp = toS(o.landingX, 0);
+    const hitOk = o.hitOk;
+    ctx.save();
+    ctx.strokeStyle = hitOk ? '#4DFFB8' : '#FF5C7A';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.moveTo(lp.x - 9, groundY - 9);
+    ctx.lineTo(lp.x + 9, groundY + 9);
+    ctx.moveTo(lp.x + 9, groundY - 9);
+    ctx.lineTo(lp.x - 9, groundY + 9);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = hitOk ? '#4DFFB8' : '#FF5C7A';
+    ctx.font = '700 11.5px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('落点 ' + o.landingX.toFixed(2) + ' m', lp.x, groundY + 14);
+    ctx.restore();
+  }
+
+  drawParticles(ctx);
+}
+
+function drawParticles(ctx) {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = 'rgba(' + p.hue + ',' + Math.max(0, p.life) + ')';
+    ctx.shadowColor = 'rgba(' + p.hue + ',1)';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function burstParticles(x, y) {
+  for (let i = 0; i < 80; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = 60 + Math.random() * 300;
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 110,
+      r: 1.5 + Math.random() * 3,
+      life: 1,
+      decay: 0.9 + Math.random() * 0.9,
+      hue: Math.random() < 0.5 ? '77,255,184' : (Math.random() < 0.5 ? '255,209,102' : '56,232,255')
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 420 * dt;
+    p.vx *= 0.985;
+    p.life -= p.decay * dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function renderPreview(now) {
+  const cv = document.getElementById('previewCanvas');
+  const { ctx, w, h } = fitCanvas(cv);
+  if (w < 10 || h < 10) return;
+
+  drawStageBg(ctx, w, h);
+
+  const cycle = 5.0;
+  const tt = (now / 1000) % cycle;
+  const T = 2.0;
+  const flight = clamp(tt - 1.2, 0, T);
+  const flighting = tt > 1.2 && tt < 1.2 + T;
+
+  const padL = 46, padR = 34, padT = 46, padB = 56;
+  const availW = Math.max(60, w - padL - padR);
+  const availH = Math.max(60, h - padT - padB);
+
+  const worldW = 46, worldH = 20;
+  const scale = Math.min(availW / worldW, availH / worldH);
+  const originX = padL + (availW - worldW * scale) / 2;
+  const groundY = h - padB;
+  const toS = (X, Y) => ({ x: originX + X * scale, y: groundY - Y * scale });
+
+  drawGround(ctx, w, h, groundY, scale, originX);
+
+  const droneX = flighting ? 0 : clamp((tt / 1.2) * 14, 0, 14);
+  const dronePos = toS(droneX, 15);
+
+  ctx.save();
+  ctx.beginPath();
+  for (let i = 0; i <= 100; i++) {
+    const s = T * i / 100;
+    const p = toS(12 * s, 15 - 0.5 * G * s * s);
+    if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  }
+  ctx.strokeStyle = 'rgba(255,209,102,0.22)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 6]);
+  ctx.stroke();
+  ctx.restore();
+
+  drawDrone(ctx, dronePos.x, dronePos.y - 26, now / 1000);
+
+  if (flighting) {
+    const boxX = 12 * flight;
+    const boxY = 15 - 0.5 * G * flight * flight;
+    const bp = toS(boxX, Math.max(boxY, 0));
+    drawBox(ctx, bp.x, bp.y, 15);
+  }
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(169,183,208,0.85)';
+  ctx.font = '12px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('无人机水平匀速飞行 · 释放物资', 16, 14);
+  ctx.restore();
+}
+
+function renderStage(now) {
+  const cv = document.getElementById('stageCanvas');
+  const { ctx, w, h } = fitCanvas(cv);
+  if (w < 10 || h < 10) return;
+
+  const L = state.layer;
+
+  drawSceneCore(ctx, w, h, now, {
+    v0: state.v0,
+    hh: state.h,
+    t: state.time,
+    showComps: state.showComponents,
+    showStrobe: state.showStrobe,
+    showTraj: state.showTrajectory,
+    showRect: state.showRect && (L === 2 || L === 3),
+    showVecs: L === 2 && state.showVectors,
+    showRes: L === 2 && state.showResultant,
+    showTarget: L === 3,
+    showLanding: L === 3 && state.landed,
+    landingX: state.landingX,
+    hitOk: state.hit
+  });
+}
+
+function renderFinal(now) {
+  const cv = document.getElementById('finalCanvas');
+  const { ctx, w, h } = fitCanvas(cv);
+  if (w < 10 || h < 10) return;
+
+  const hh = 20, v0 = 12;
+  const T = Math.sqrt(2 * hh / G);
+
+  drawSceneCore(ctx, w, h, now, {
+    v0, hh,
+    t: T * 0.78,
+    showComps: true,
+    showStrobe: true,
+    showTraj: true,
+    showRect: true,
+    showVecs: true,
+    showRes: true,
+    showTarget: false,
+    showLanding: false,
+    landingX: null,
+    hitOk: false
+  });
+}
+
+/* ============================================================
+   5. 主循环
+   ============================================================ */
+let lastTs = 0;
+
+function loop(ts) {
+  if (!lastTs) lastTs = ts;
+  let dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+  dt = Math.min(dt, 0.06);
+
+  if (state.playing && (state.layer === 1 || state.layer === 2 || state.layer === 3)) {
+    const T = totalTime();
+    state.time += dt * state.speed;
+
+    if (state.time >= T) {
+      state.time = T;
+      state.playing = false;
+      state.playedOnce = true;
+      onFlightEnd();
+      syncControls();
+      updateDataPanel();
+      checkCompletion();
+    }
+    updateDataPanel();
+  }
+
+  updateParticles(dt);
+
+  if (state.layer === 0) renderPreview(ts);
+  else if (state.layer === 4) renderFinal(ts);
+  else renderStage(ts);
+
+  requestAnimationFrame(loop);
+}
+
+function onFlightEnd() {
+  if (state.layer === 3 && state.launched && !state.landed) {
+    state.landed = true;
+    const T = totalTime();
+    state.landingX = state.v0 * T;
+    const td = targetDistance();
+    const ok = Math.abs(state.landingX - td) <= TARGET_TOL;
+    state.hit = ok;
+
+    if (ok) {
+      const cv = document.getElementById('stageCanvas');
+      const view = computeView(cv.clientWidth, cv.clientHeight, state.h, state.v0);
+      const lp = view.toS(state.landingX, 0);
+      burstParticles(lp.x, lp.y - 8);
+      showToast('🎉 投放成功！落点 ' + state.landingX.toFixed(2) + ' m', 'ok');
+    } else {
+      const diff = state.landingX - td;
+      showToast(diff < 0 ? '落点偏近，请观察水平位移与初速度的关系' : '落点偏远，请观察水平位移与初速度的关系', 'no');
+    }
+  }
+}
+
+/* ============================================================
+   6. UI 渲染与绑定
+   ============================================================ */
+function renderSteps() {
+  const nav = document.getElementById('steps');
+  nav.innerHTML = '';
+  for (let i = 0; i < 5; i++) {
+    const el = document.createElement('div');
+    el.className = 'step';
+
+    const done = (i === 0 && state.layer > 0) ||
+                 (i === 1 && state.tasks[1]) ||
+                 (i === 2 && state.tasks[2]) ||
+                 (i === 3 && state.tasks[3]);
+
+    if (i === state.layer) {
+      el.classList.add('active');
+    } else if (i <= state.unlocked) {
+      if (done) el.classList.add('done');
+    } else {
+      el.classList.add('locked');
+    }
+
+    if (i !== state.layer && i <= state.unlocked) {
+      el.classList.add('clickable');
+      el.addEventListener('click', () => gotoLayer(i));
+    }
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.textContent = (done && i !== state.layer) ? '✓' : (i <= state.unlocked ? String(i + 1) : '🔒');
+    if (done && i !== state.layer) dot.style.fontSize = '12px';
+    if (i > state.unlocked) dot.style.fontSize = '9px';
+
+    const label = document.createElement('span');
+    label.textContent = LAYER_NAMES[i];
+
+    el.appendChild(dot);
+    el.appendChild(label);
+    nav.appendChild(el);
+  }
+}
+
+function renderScreens() {
+  document.getElementById('screen0').classList.toggle('active', state.layer === 0);
+  document.getElementById('screenWork').classList.toggle('active', state.layer >= 1 && state.layer <= 3);
+  document.getElementById('screen4').classList.toggle('active', state.layer === 4);
+
+  const t3 = document.getElementById('task3Btns');
+  t3.classList.toggle('hidden', state.layer !== 3);
+
+  const rangeH = document.getElementById('rangeH');
+  rangeH.disabled = (state.layer === 3);
+}
+
+/* 本关目标与公式 */
+function renderFormulas() {
+  const el = document.getElementById('formulaList');
+  if (!el) return;
+  const list = LAYER_FORMULAS[state.layer] || [];
+  el.innerHTML = '';
+  list.forEach(f => {
+    const d = document.createElement('div');
+    d.className = 'formula' + (f.c ? ' ' + f.c : '');
+    d.textContent = f.t;
+    el.appendChild(d);
+  });
+}
+
+function renderGoal() {
+  const el = document.getElementById('goalCard');
+  if (!el) return;
+  el.textContent = LAYER_GOALS[state.layer] || '';
+}
+
+function syncControls() {
+  const T = totalTime();
+
+  document.getElementById('rangeV0').value = state.v0;
+  document.getElementById('valV0').textContent = state.v0.toFixed(1) + ' m/s';
+
+  document.getElementById('rangeH').value = state.h;
+  document.getElementById('valH').textContent = state.h.toFixed(0) + ' m';
+
+  const rangeT = document.getElementById('rangeT');
+  rangeT.max = T.toFixed(3);
+  rangeT.value = Math.min(state.time, T);
+  document.getElementById('valT').textContent = state.time.toFixed(2) + ' s';
+
+  document.getElementById('btnPlay').textContent = state.playing ? '⏸ 暂停' : '▶ 播放';
+  document.getElementById('btnSpeed').textContent = state.speed.toFixed(1) + '×';
+
+  document.getElementById('chkComponents').checked = state.showComponents;
+  document.getElementById('chkVectors').checked = state.showVectors;
+  document.getElementById('chkResultant').checked = state.showResultant;
+  document.getElementById('chkStrobe').checked = state.showStrobe;
+  document.getElementById('chkTrajectory').checked = state.showTrajectory;
+  document.getElementById('chkRect').checked = state.showRect;
+
+  const btnConnect = document.getElementById('btnConnect');
+  const btnLaunch = document.getElementById('btnLaunch');
+  btnConnect.textContent = state.showTrajectory ? '已连成轨迹' : '连点成轨迹';
+  btnConnect.disabled = state.showTrajectory;
+  btnLaunch.textContent = state.playing ? '投放中…' : '投放';
+  btnLaunch.disabled = state.playing;
+}
+
+function updateDataPanel() {
+  const t = state.time;
+  const p = physicsAt(t);
+  document.getElementById('d-t').textContent = t.toFixed(2);
+  document.getElementById('d-x').textContent = p.x.toFixed(2);
+  document.getElementById('d-y').textContent = p.drop.toFixed(2);
+  document.getElementById('d-vx').textContent = p.vx.toFixed(2);
+  document.getElementById('d-vy').textContent = p.vy.toFixed(2);
+  document.getElementById('d-v').textContent = p.v.toFixed(2);
+  document.getElementById('d-th').textContent = p.theta.toFixed(1);
+}
+
+function renderQuiz() {
+  const panel = document.getElementById('quizPanel');
+  panel.innerHTML = '';
+  const L = state.layer;
+  const data = QUIZZES[L];
+  if (!data) return;
+
+  const title = document.createElement('div');
+  title.className = 'panel-title';
+  title.textContent = '任务问题（对照上方动画与右侧数据作答）';
+  panel.appendChild(title);
+
+  data.forEach((item, qi) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'quiz-item';
+
+    const q = document.createElement('div');
+    q.className = 'quiz-q';
+    q.innerHTML = '<span class="idx">' + (qi + 1) + '</span><span>' + item.q + '</span>';
+    wrap.appendChild(q);
+
+    const opts = document.createElement('div');
+    opts.className = 'options';
+
+    const answered = state.answers[L][qi] === item.correct;
+
+    item.opts.forEach((text, oi) => {
+      const btn = document.createElement('button');
+      btn.className = 'option';
+      btn.type = 'button';
+      btn.textContent = String.fromCharCode(65 + oi) + '. ' + text;
+      btn.dataset.qi = qi;
+      btn.dataset.oi = oi;
+
+      if (answered) {
+        btn.disabled = true;
+        if (oi === item.correct) btn.classList.add('correct');
+      }
+
+      btn.addEventListener('click', () => handleAnswer(L, qi, oi, btn));
+      opts.appendChild(btn);
+    });
+
+    wrap.appendChild(opts);
+    panel.appendChild(wrap);
+  });
+
+  const fb = document.createElement('div');
+  fb.className = 'quiz-feedback';
+  fb.id = 'quizFeedback';
+  panel.appendChild(fb);
+
+  updateQuizFeedback();
+}
+
+function handleAnswer(L, qi, oi, btn) {
+  const item = QUIZZES[L][qi];
+  if (state.answers[L][qi] === item.correct) return;
+
+  if (oi === item.correct) {
+    state.answers[L][qi] = item.correct;
+    const opts = btn.parentElement;
+    Array.from(opts.children).forEach((c, idx) => {
+      c.classList.remove('wrong');
+      c.disabled = true;
+      if (idx === item.correct) c.classList.add('correct');
+    });
+    updateQuizFeedback('ok');
+    checkCompletion();
+  } else {
+    btn.classList.add('wrong');
+    setTimeout(() => btn.classList.remove('wrong'), 700);
+    updateQuizFeedback('no');
+  }
+}
+
+function updateQuizFeedback(force) {
+  const el = document.getElementById('quizFeedback');
+  if (!el) return;
+  const L = state.layer;
+  const data = QUIZZES[L];
+  if (!data) return;
+
+  const total = data.length;
+  let right = 0;
+  data.forEach((it, i) => { if (state.answers[L][i] === it.correct) right++; });
+
+  if (force === 'no') {
+    el.className = 'quiz-feedback no';
+    el.textContent = '再想一想，观察动画中箭头与位置的变化，然后重新选择。';
+    return;
+  }
+  if (right === total) {
+    el.className = 'quiz-feedback ok';
+    el.textContent = '✓ 全部答对！' + getExtraHint(L);
+  } else {
+    el.className = 'quiz-feedback';
+    el.textContent = '已答对 ' + right + ' / ' + total + ' 题';
+  }
+}
+
+function getExtraHint(L) {
+  if (L === 1) return state.playedOnce ? '' : ' 还需要完整播放一次动画。';
+  if (L === 2) {
+    const d = state.dragTimes.length;
+    if (d < 3) return ' 还需要拖动时间滑块到 3 个不同时刻（' + d + '/3）。';
+    if (!state.vectorOpened) return ' 还需要打开一次“速度合成”。';
+    return '';
+  }
+  if (L === 3) return state.hit ? '' : ' 还需要成功命中目标区。';
+  return '';
+}
+
+function allRight(L) {
+  const data = QUIZZES[L];
+  if (!data) return false;
+  return data.every((it, i) => state.answers[L][i] === it.correct);
+}
+
+function taskStatus(L) {
+  if (L === 1) {
+    if (!state.playedOnce) return { ok: false, reason: '请先完整播放一次动画' };
+    if (!allRight(1)) return { ok: false, reason: '请答对全部 3 道题' };
+    return { ok: true, reason: '' };
+  }
+  if (L === 2) {
+    if (state.dragTimes.length < 3) {
+      return { ok: false, reason: '请拖动时间滑块到 3 个不同时刻（' + state.dragTimes.length + '/3）' };
+    }
+    if (!state.vectorOpened) return { ok: false, reason: '请打开一次“速度合成”开关' };
+    if (!allRight(2)) return { ok: false, reason: '请答对全部 3 道题' };
+    return { ok: true, reason: '' };
+  }
+  if (L === 3) {
+    if (!state.hit) return { ok: false, reason: '请调节初速度，成功命中目标区' };
+    if (!allRight(3)) return { ok: false, reason: '请答对全部 2 道题' };
+    return { ok: true, reason: '' };
+  }
+  return { ok: false, reason: '请先完成任务' };
+}
+
+function checkCompletion() {
+  state.tasks[1] = state.tasks[1] || taskStatus(1).ok;
+  state.tasks[2] = state.tasks[2] || taskStatus(2).ok;
+  state.tasks[3] = state.tasks[3] || taskStatus(3).ok;
+
+  if (state.tasks[1]) state.unlocked = Math.max(state.unlocked, 2);
+  if (state.tasks[2]) state.unlocked = Math.max(state.unlocked, 3);
+  if (state.tasks[3]) state.unlocked = Math.max(state.unlocked, 4);
+
+  renderSteps();
+  updateNextButton();
+  updateQuizFeedback();
+  saveProgress();
+}
+
+function updateNextButton() {
+  const btn = document.getElementById('btnNext');
+  const hint = document.getElementById('lockHint');
+  const txt = document.getElementById('lockText');
+  const L = state.layer;
+
+  if (L < 1 || L > 3) { btn.disabled = true; return; }
+
+  const st = taskStatus(L);
+
+  btn.textContent = NEXT_TEXT[L];
+  btn.disabled = !st.ok;
+  btn.classList.toggle('ready', st.ok);
+
+  if (st.ok) {
+    hint.classList.add('ok');
+    hint.querySelector('.ico').textContent = '✅';
+    txt.textContent = '任务完成！可以进入下一关。';
+  } else {
+    hint.classList.remove('ok');
+    hint.querySelector('.ico').textContent = '🔒';
+    txt.textContent = st.reason;
+  }
+}
+
+/* ============================================================
+   7. 关卡逻辑
+   ============================================================ */
+function gotoLayer(n) {
+  if (n > state.unlocked) return;
+
+  state.layer = n;
+  state.playing = false;
+  state.time = 0;
+  particles = [];
+
+  if (n === 3) {
+    state.h = 20;
+    state.launched = false;
+    state.landed = false;
+    state.landingX = null;
+  }
+
+  if (n === 1) {
+    state.speed = 0.5;
+    state.showComponents = true;
+    state.showStrobe = true;
+    state.showTrajectory = false;
+    state.showVectors = false;
+    state.showResultant = false;
+  } else if (n === 2) {
+    state.speed = 1;
+    state.showComponents = true;
+    state.showStrobe = false;
+    state.showTrajectory = false;
+    state.showRect = false;
+    state.showVectors = true;
+    state.showResultant = state.vectorOpened;
+  } else if (n === 3) {
+    state.speed = 1;
+    state.showComponents = true;
+    state.showStrobe = true;
+    state.showRect = true;
+    state.showTrajectory = state.trajectoryRevealed;
+    state.showVectors = false;
+    state.showResultant = false;
+  }
+
+  renderScreens();
+  renderSteps();
+  renderQuiz();
+  renderFormulas();
+  renderGoal();
+  syncControls();
+  updateDataPanel();
+  updateNextButton();
+  saveProgress();
+}
+
+function resetLayer() {
+  const L = state.layer;
+  state.playing = false;
+  state.time = 0;
+  particles = [];
+
+  if (L === 1) {
+    state.answers[1] = [null, null, null];
+    state.playedOnce = false;
+    state.tasks[1] = false;
+    state.speed = 0.5;
+    state.showComponents = true;
+    state.showStrobe = true;
+    state.showTrajectory = false;
+  } else if (L === 2) {
+    state.answers[2] = [null, null, null];
+    state.dragTimes = [];
+    state.vectorOpened = false;
+    state.tasks[2] = false;
+    state.showVectors = true;
+    state.showResultant = false;
+    state.showStrobe = false;
+  } else if (L === 3) {
+    state.answers[3] = [null, null];
+    state.tasks[3] = false;
+    state.hit = false;
+    state.landed = false;
+    state.launched = false;
+    state.landingX = null;
+    state.trajectoryRevealed = false;
+    state.showTrajectory = false;
+    state.v0 = 12;
+    state.h = 20;
+  }
+
+  recomputeUnlocked();
+  renderScreens();
+  renderSteps();
+  renderQuiz();
+  renderFormulas();
+  renderGoal();
+  syncControls();
+  updateDataPanel();
+  updateNextButton();
+  saveProgress();
+  showToast('本关已重置');
+}
+
+function recomputeUnlocked() {
+  let u = 0;
+  if (state.tasks[1]) u = Math.max(u, 2);
+  if (state.tasks[2]) u = Math.max(u, 3);
+  if (state.tasks[3]) u = Math.max(u, 4);
+  state.unlocked = Math.max(u, state.layer);
+}
+
+function resetAll() {
+  state.layer = 0;
+  state.unlocked = 0;
+  state.playing = false;
+  state.time = 0;
+  state.v0 = 12;
+  state.h = 20;
+  state.speed = 1;
+  state.showComponents = true;
+  state.showVectors = false;
+  state.showResultant = false;
+  state.showStrobe = true;
+  state.showTrajectory = false;
+  state.showRect = true;
+  state.playedOnce = false;
+  state.dragTimes = [];
+  state.vectorOpened = false;
+  state.trajectoryRevealed = false;
+  state.launched = false;
+  state.landed = false;
+  state.hit = false;
+  state.landingX = null;
+  state.answers = { 1: [null, null, null], 2: [null, null, null], 3: [null, null] };
+  state.tasks = { 1: false, 2: false, 3: false };
+  particles = [];
+
+  localStorage.removeItem(STORAGE_KEY);
+
+  renderScreens();
+  renderSteps();
+  renderQuiz();
+  syncControls();
+  updateDataPanel();
+  updateNextButton();
+  showToast('已重置全部进度');
+}
+
+/* ============================================================
+   8. 进度保存
+   ============================================================ */
+function saveProgress() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      layer: state.layer,
+      unlocked: state.unlocked,
+      tasks: state.tasks,
+      answers: state.answers,
+      playedOnce: state.playedOnce,
+      dragTimes: state.dragTimes,
+      vectorOpened: state.vectorOpened,
+      hit: state.hit
+    }));
+  } catch (e) { /* 忽略 */ }
+}
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (typeof d.unlocked === 'number') state.unlocked = clamp(d.unlocked, 0, 4);
+    if (typeof d.layer === 'number') state.layer = clamp(d.layer, 0, 4);
+    if (d.tasks) state.tasks = Object.assign(state.tasks, d.tasks);
+    if (d.answers) state.answers = Object.assign(state.answers, d.answers);
+    if (typeof d.playedOnce === 'boolean') state.playedOnce = d.playedOnce;
+    if (Array.isArray(d.dragTimes)) state.dragTimes = d.dragTimes;
+    if (typeof d.vectorOpened === 'boolean') state.vectorOpened = d.vectorOpened;
+    if (typeof d.hit === 'boolean') state.hit = d.hit;
+  } catch (e) { /* 忽略 */ }
+}
+
+/* ============================================================
+   9. 事件绑定
+   ============================================================ */
+function bindEvents() {
+  document.getElementById('btnStart').addEventListener('click', () => {
+    state.unlocked = Math.max(state.unlocked, 1);
+    gotoLayer(1);
+  });
+
+  document.getElementById('rangeV0').addEventListener('input', (e) => {
+    state.v0 = parseFloat(e.target.value);
+    state.time = Math.min(state.time, totalTime());
+    syncControls();
+    updateDataPanel();
+  });
+
+  document.getElementById('rangeH').addEventListener('input', (e) => {
+    state.h = parseFloat(e.target.value);
+    state.time = Math.min(state.time, totalTime());
+    syncControls();
+    updateDataPanel();
+  });
+
+  const rangeT = document.getElementById('rangeT');
+  rangeT.addEventListener('input', (e) => {
+    state.playing = false;
+    state.time = parseFloat(e.target.value);
+    if (state.layer === 2) {
+      const key = Math.round(state.time * 10) / 10;
+      if (!state.dragTimes.includes(key)) {
+        state.dragTimes.push(key);
+        checkCompletion();
+      }
+    }
+    syncControls();
+    updateDataPanel();
+  });
+
+  document.getElementById('btnPlay').addEventListener('click', () => {
+    const T = totalTime();
+    if (state.time >= T - 0.001) state.time = 0;
+    state.playing = !state.playing;
+    syncControls();
+  });
+
+  document.getElementById('btnSpeed').addEventListener('click', () => {
+    const seq = [0.5, 1, 2];
+    let idx = seq.indexOf(state.speed);
+    if (idx < 0) idx = 1;
+    state.speed = seq[(idx + 1) % seq.length];
+    syncControls();
+  });
+
+  document.getElementById('chkComponents').addEventListener('change', (e) => {
+    state.showComponents = e.target.checked;
+  });
+  document.getElementById('chkVectors').addEventListener('change', (e) => {
+    state.showVectors = e.target.checked;
+  });
+  document.getElementById('chkResultant').addEventListener('change', (e) => {
+    state.showResultant = e.target.checked;
+    if (state.layer === 2 && state.showResultant) {
+      state.vectorOpened = true;
+      checkCompletion();
+    }
+  });
+  document.getElementById('chkStrobe').addEventListener('change', (e) => {
+    state.showStrobe = e.target.checked;
+  });
+  document.getElementById('chkTrajectory').addEventListener('change', (e) => {
+    state.showTrajectory = e.target.checked;
+    if (state.layer === 3) state.trajectoryRevealed = e.target.checked;
+    syncControls();
+  });
+  document.getElementById('chkRect').addEventListener('change', (e) => {
+    state.showRect = e.target.checked;
+  });
+
+  document.getElementById('btnConnect').addEventListener('click', () => {
+    state.showTrajectory = true;
+    state.trajectoryRevealed = true;
+    syncControls();
+    showToast('已把各时刻的合位移端点连成抛物线');
+  });
+
+  document.getElementById('btnLaunch').addEventListener('click', () => {
+    state.time = 0;
+    state.playing = true;
+    state.launched = true;
+    state.landed = false;
+    state.landingX = null;
+    state.showTrajectory = true;
+    syncControls();
+    updateDataPanel();
+  });
+
+  document.getElementById('btnResetLayer').addEventListener('click', resetLayer);
+  document.getElementById('btnResetAll').addEventListener('click', resetAll);
+
+  document.getElementById('btnNext').addEventListener('click', () => {
+    if (state.layer >= 3) {
+      state.unlocked = Math.max(state.unlocked, 4);
+      state.layer = 4;
+      state.playing = false;
+      renderScreens();
+      renderSteps();
+      saveProgress();
+      return;
+    }
+    const next = state.layer + 1;
+    state.unlocked = Math.max(state.unlocked, next);
+    gotoLayer(next);
+  });
+
+  document.getElementById('btnReplay').addEventListener('click', () => {
+    state.v0 = 12;
+    state.h = 20;
+    gotoLayer(1);
+    setTimeout(() => { state.playing = true; syncControls(); }, 200);
+  });
+  document.getElementById('btnHome').addEventListener('click', () => {
+    state.layer = 0;
+    state.playing = false;
+    renderScreens();
+    renderSteps();
+    saveProgress();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'T' || e.key === 't') {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      toggleTeacherMode();
+    }
+  });
+
+  document.getElementById('btnTeacherJump').addEventListener('click', () => {
+    state.unlocked = 4;
+    state.tasks = { 1: true, 2: true, 3: true };
+    state.playedOnce = true;
+    state.vectorOpened = true;
+    state.dragTimes = [0.5, 1.0, 1.5];
+    state.hit = true;
+    Object.keys(QUIZZES).forEach(L => {
+      QUIZZES[L].forEach((q, i) => { state.answers[L][i] = q.correct; });
+    });
+    renderSteps();
+    renderQuiz();
+    updateNextButton();
+    showToast('已强制解锁全部关卡（教师模式）');
+  });
+}
+
+function toggleTeacherMode() {
+  state.teacherMode = !state.teacherMode;
+  const btn = document.getElementById('btnTeacherJump');
+  btn.classList.toggle('hidden', !state.teacherMode);
+  showToast(state.teacherMode ? '教师模式已开启（按 T 关闭）' : '教师模式已关闭');
+}
+
+/* ============================================================
+   10. 背景星点生成
+   ============================================================ */
+function makeStars() {
+  const el = document.getElementById('stars');
+  const n = 90;
+  const shadows = [];
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(Math.random() * 1920);
+    const y = Math.round(Math.random() * 1080);
+    const a = (0.15 + Math.random() * 0.5).toFixed(2);
+    const size = Math.random() < 0.85 ? 1 : 2;
+    shadows.push(`${x}px ${y}px 0 ${size - 1}px rgba(180,220,255,${a})`);
+  }
+  const dot = document.createElement('div');
+  dot.style.cssText = 'position:absolute;top:0;left:0;width:2px;height:2px;border-radius:50%;background:transparent;box-shadow:' + shadows.join(',') + ';';
+  el.appendChild(dot);
+}
+
+/* ============================================================
+   11. 初始化
+   ============================================================ */
+function init() {
+  makeStars();
+  loadProgress();
+  bindEvents();
+
+  if (state.layer > 0 && state.layer <= state.unlocked) {
+    gotoLayer(state.layer);
+  } else {
+    state.layer = 0;
+    renderScreens();
+    renderSteps();
+    renderQuiz();
+    syncControls();
+    updateDataPanel();
+    updateNextButton();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+init();
+</script>
+</body>
+</html>
